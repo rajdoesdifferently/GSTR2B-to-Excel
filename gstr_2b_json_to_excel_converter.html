@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GSTR-2B JSON to Excel Converter & Visualizer</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS for Excel workbook creation -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        gst: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#2563eb',
+                            600: '#1d4ed8',
+                            700: '#1e40af',
+                            800: '#1e3a8a',
+                            900: '#172554'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="h-full text-slate-800 flex flex-col font-sans">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-gst-900 text-white shadow-md sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-blue-600 p-2 rounded-lg text-white">
+                    <i data-lucide="file-spreadsheet" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">GSTR-2B Smart Converter</h1>
+                    <p class="text-xs text-blue-200">JSON to Excel Converter & Visualizer</p>
+                </div>
+            </div>
+
+            <!-- Header Action Badges & Export -->
+            <div class="flex items-center space-x-3">
+                <div id="headerBadges" class="hidden flex flex-wrap items-center gap-2 text-xs">
+                    <span class="bg-blue-800 text-blue-100 px-3 py-1 rounded-full font-mono border border-blue-700 max-w-[200px] truncate" id="badgeGstinWrapper" title="GSTIN(s)">
+                        <i data-lucide="building" class="w-3.5 h-3.5 inline mr-1"></i><span id="badgeGstin">--</span>
+                    </span>
+                    <span class="bg-emerald-800 text-emerald-100 px-3 py-1 rounded-full font-mono border border-emerald-700 max-w-[280px] truncate" id="badgePeriodWrapper" title="Period(s)">
+                        <i data-lucide="calendar" class="w-3.5 h-3.5 inline mr-1"></i><span id="badgePeriod">--</span>
+                    </span>
+                </div>
+                <button id="btnExportAll" onclick="exportConsolidatedExcel()" class="hidden text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3.5 py-1.5 rounded-lg transition shadow flex items-center gap-1.5">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                    <span>Export Consolidated Excel</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-6">
+
+        <!-- File Upload Section -->
+        <section id="uploadSection" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 transition-all duration-300">
+            <div id="dropZone" class="border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 hover:bg-blue-50/50 rounded-xl p-8 text-center transition cursor-pointer flex flex-col items-center justify-center">
+                <input type="file" id="fileInput" multiple accept=".json" class="hidden" onchange="handleFileSelect(event)">
+                
+                <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 shadow-inner">
+                    <i data-lucide="upload-cloud" class="w-8 h-8"></i>
+                </div>
+
+                <h3 class="text-lg font-semibold text-slate-800 mb-1">Upload GSTR-2B JSON File(s)</h3>
+                <p class="text-sm text-slate-500 max-w-md mb-4">
+                    Drag and drop your JSON files here, or click to browse. Supports single JSON files or multiple chunk files (Summary + Detailed files).
+                </p>
+
+                <button type="button" onclick="document.getElementById('fileInput').click()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2.5 rounded-lg shadow-sm transition flex items-center gap-2 text-sm">
+                    <i data-lucide="folder-open" class="w-4 h-4"></i>
+                    <span>Select Files</span>
+                </button>
+            </div>
+
+            <!-- Uploaded Files List Status -->
+            <div id="fileListContainer" class="hidden mt-4 pt-4 border-t border-slate-100">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Loaded File Chunks (<span id="fileCount">0</span>)</span>
+                    <button onclick="resetData()" class="text-xs text-rose-600 hover:underline flex items-center gap-1">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear All Files
+                    </button>
+                </div>
+                <div id="fileBadges" class="flex flex-wrap gap-2"></div>
+            </div>
+        </section>
+
+        <!-- Dashboard Section (Hidden by default until data is parsed) -->
+        <div id="dashboardSection" class="hidden space-y-6">
+
+            <!-- Summary KPI Metric Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                <!-- Card 1: Total Invoices -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Documents</p>
+                            <h3 id="statTotalInvoices" class="text-2xl font-bold text-slate-900 mt-1">0</h3>
+                            <p class="text-xs text-slate-400 mt-1"><span id="statB2BCount">0</span> B2B | <span id="statCDNRCount">0</span> CDNR</p>
+                        </div>
+                        <div class="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                            <i data-lucide="file-text" class="w-6 h-6"></i>
+                        </div>
+                    </div>
+                    <div class="absolute bottom-0 left-0 right-0 h-1 bg-blue-500"></div>
+                </div>
+
+                <!-- Card 2: Total Taxable Value -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Taxable Value</p>
+                            <h3 id="statTaxableValue" class="text-2xl font-bold text-slate-900 mt-1">₹0.00</h3>
+                            <p class="text-xs text-slate-400 mt-1">Total taxable base</p>
+                        </div>
+                        <div class="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                            <i data-lucide="indian-rupee" class="w-6 h-6"></i>
+                        </div>
+                    </div>
+                    <div class="absolute bottom-0 left-0 right-0 h-1 bg-amber-500"></div>
+                </div>
+
+                <!-- Card 3: Total Tax Amount -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Tax (IGST+CGST+SGST)</p>
+                            <h3 id="statTotalTax" class="text-2xl font-bold text-slate-900 mt-1">₹0.00</h3>
+                            <p class="text-xs text-slate-400 mt-1">IGST: <span id="statIgst">₹0</span> | CGST: <span id="statCgst">₹0</span></p>
+                        </div>
+                        <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                            <i data-lucide="calculator" class="w-6 h-6"></i>
+                        </div>
+                    </div>
+                    <div class="absolute bottom-0 left-0 right-0 h-1 bg-indigo-500"></div>
+                </div>
+
+                <!-- Card 4: ITC Available vs Unavailable -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">ITC Status</p>
+                            <h3 id="statItcAvailable" class="text-2xl font-bold text-emerald-600 mt-1">₹0.00</h3>
+                            <p class="text-xs text-slate-400 mt-1">Available ITC (B2B + CDNR)</p>
+                        </div>
+                        <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                            <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+                        </div>
+                    </div>
+                    <div class="absolute bottom-0 left-0 right-0 h-1 bg-emerald-500"></div>
+                </div>
+
+            </div>
+
+            <!-- Analytics Charts Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Tax Split Doughnut Chart -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <h4 class="font-semibold text-slate-800 mb-4 flex items-center gap-2 text-sm">
+                        <i data-lucide="pie-chart" class="w-4 h-4 text-blue-600"></i> Tax Distribution Split
+                    </h4>
+                    <div class="h-60 relative flex items-center justify-center">
+                        <canvas id="chartTaxSplit"></canvas>
+                    </div>
+                </div>
+
+                <!-- Top 5 Suppliers Bar Chart -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2">
+                    <h4 class="font-semibold text-slate-800 mb-4 flex items-center gap-2 text-sm">
+                        <i data-lucide="bar-chart-3" class="w-4 h-4 text-blue-600"></i> Top Suppliers by Taxable Value
+                    </h4>
+                    <div class="h-60 relative">
+                        <canvas id="chartTopSuppliers"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Data Explorer Section -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                
+                <!-- Table Navigation Tabs & Search Controls -->
+                <div class="border-b border-slate-200 bg-slate-50/70 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    
+                    <!-- Tabs -->
+                    <div class="flex flex-wrap gap-1 bg-slate-200/60 p-1 rounded-xl" id="tableTabs">
+                        <button onclick="switchTab('b2b')" id="tab-b2b" class="tab-btn active-tab text-xs font-semibold px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 bg-white text-blue-700 shadow-sm">
+                            <i data-lucide="shopping-bag" class="w-3.5 h-3.5"></i> B2B Invoices (<span id="countTabB2B">0</span>)
+                        </button>
+                        <button onclick="switchTab('b2ba')" id="tab-b2ba" class="tab-btn text-xs font-semibold px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 text-slate-600 hover:text-slate-900">
+                            <i data-lucide="file-edit" class="w-3.5 h-3.5"></i> B2BA (<span id="countTabB2BA">0</span>)
+                        </button>
+                        <button onclick="switchTab('cdnr')" id="tab-cdnr" class="tab-btn text-xs font-semibold px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 text-slate-600 hover:text-slate-900">
+                            <i data-lucide="file-minus" class="w-3.5 h-3.5"></i> CDNR (<span id="countTabCDNR">0</span>)
+                        </button>
+                        <button onclick="switchTab('cpsumm')" id="tab-cpsumm" class="tab-btn text-xs font-semibold px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 text-slate-600 hover:text-slate-900">
+                            <i data-lucide="users" class="w-3.5 h-3.5"></i> Counterparties (<span id="countTabCP">0</span>)
+                        </button>
+                        <button onclick="switchTab('itcsumm')" id="tab-itcsumm" class="tab-btn text-xs font-semibold px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 text-slate-600 hover:text-slate-900">
+                            <i data-lucide="table" class="w-3.5 h-3.5"></i> ITC Summary Table
+                        </button>
+                    </div>
+
+                    <!-- Search & Table Specific Filter -->
+                    <div class="flex items-center gap-2">
+                        <div class="relative flex-1 md:w-64">
+                            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                            <input type="text" id="searchInput" oninput="handleSearch()" placeholder="Search File, Name, GSTIN, Inv No..." class="w-full pl-9 pr-3 py-1.5 bg-white text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <button onclick="exportCurrentTableExcel()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-300 transition flex items-center gap-1 shrink-0">
+                            <i data-lucide="sheet" class="w-3.5 h-3.5 text-emerald-600"></i> Export Active View
+                        </button>
+                    </div>
+
+                </div>
+
+                <!-- Table Content Container -->
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead id="tableHead" class="bg-slate-100/80 text-slate-700 font-semibold uppercase tracking-wider border-b border-slate-200 sticky top-0">
+                            <!-- Dynamic Table Headers -->
+                        </thead>
+                        <tbody id="tableBody" class="divide-y divide-slate-200/70 bg-white">
+                            <!-- Dynamic Rows -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Table Pagination Bar & Records View Selector -->
+                <div class="p-3 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-500 gap-3">
+                    <div class="flex items-center space-x-4">
+                        <div>
+                            Showing <span id="pageStart" class="font-semibold text-slate-700">0</span> to <span id="pageEnd" class="font-semibold text-slate-700">0</span> of <span id="pageTotal" class="font-semibold text-slate-700">0</span> records
+                        </div>
+                        <!-- Records Page Size Selector -->
+                        <div class="flex items-center space-x-1 border-l pl-4 border-slate-200">
+                            <label for="pageSizeSelect" class="text-slate-600">Rows per page:</label>
+                            <select id="pageSizeSelect" onchange="changePageSize()" class="bg-white border border-slate-300 text-slate-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium">
+                                <option value="10">10</option>
+                                <option value="15" selected>15</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                                <option value="all">All</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-2">
+                        <button id="btnPrevPage" onclick="changePage(-1)" class="px-2.5 py-1 bg-white border border-slate-300 rounded hover:bg-slate-100 disabled:opacity-40 transition">Previous</button>
+                        <span id="pageIndicator" class="font-medium">1</span>
+                        <button id="btnNextPage" onclick="changePage(1)" class="px-2.5 py-1 bg-white border border-slate-300 rounded hover:bg-slate-100 disabled:opacity-40 transition">Next</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <script>
+        // Global Master State
+        let masterData = {
+            b2b: [],
+            b2ba: [],
+            cdnr: [],
+            cdnra: [],
+            cpsumm: [],
+            itcsumm: []
+        };
+
+        // File metadata store: filename -> { gstin, rtnprd, recordCount }
+        let loadedFilesMap = new Map();
+        let activeTab = 'b2b';
+        let currentPage = 1;
+        let pageSize = 15;
+        let filteredRows = [];
+        let chartTaxInstance = null;
+        let chartSupplierInstance = null;
+
+        // Initialize Lucide icons and drag & drop handlers on DOM ready
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            setupDragAndDrop();
+        });
+
+        // Setup Drag & Drop Handlers
+        function setupDragAndDrop() {
+            const dropZone = document.getElementById('dropZone');
+
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, false);
+            });
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.add('border-blue-500', 'bg-blue-50');
+                }, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+                }, false);
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    processFiles(files);
+                }
+            });
+        }
+
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            if (files.length > 0) {
+                processFiles(files);
+            }
+        }
+
+        async function processFiles(files) {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (!file.name.endsWith('.json')) continue;
+
+                // Avoid re-ingesting already uploaded files with exact same name
+                if (loadedFilesMap.has(file.name)) {
+                    removeFileChunk(file.name, false); // clear prior chunk if re-uploaded
+                }
+
+                try {
+                    const text = await file.text();
+                    const json = JSON.parse(text);
+                    ingestGstr2bJson(json, file.name);
+                } catch (err) {
+                    console.error("Error reading file:", file.name, err);
+                    alert("Error parsing JSON file: " + file.name);
+                }
+            }
+
+            renderDashboard();
+        }
+
+        // Core Parsing & Consolidation Engine with Traceability
+        function ingestGstr2bJson(json, fileName = 'uploaded.json') {
+            const data = json.data || json; // Handle wrapped or direct root
+
+            let addedRecords = 0;
+            const fileGstin = data.gstin || '';
+            const filePeriod = data.rtnprd || '';
+
+            // ITC Summary Flattening
+            if (data.itcsumm) {
+                const flatItc = flattenItcSummary(data.itcsumm, fileName);
+                masterData.itcsumm.push(...flatItc);
+                addedRecords += flatItc.length;
+            }
+
+            // Document Data (Invoices & Notes)
+            if (data.docdata) {
+                // B2B
+                if (Array.isArray(data.docdata.b2b)) {
+                    data.docdata.b2b.forEach(supplier => {
+                        const ctin = supplier.ctin || '';
+                        const trdnm = supplier.trdnm || '';
+                        const supfildt = supplier.supfildt || '';
+                        const supprd = supplier.supprd || '';
+
+                        if (Array.isArray(supplier.inv)) {
+                            supplier.inv.forEach(inv => {
+                                masterData.b2b.push({
+                                    sourceFile: fileName,
+                                    ctin,
+                                    trdnm,
+                                    supfildt,
+                                    supprd,
+                                    inum: inv.inum || '',
+                                    dt: inv.dt || '',
+                                    val: Number(inv.val || 0),
+                                    txval: Number(inv.txval || 0),
+                                    igst: Number(inv.igst || 0),
+                                    cgst: Number(inv.cgst || 0),
+                                    sgst: Number(inv.sgst || 0),
+                                    cess: Number(inv.cess || 0),
+                                    pos: inv.pos || '',
+                                    rev: inv.rev || 'N',
+                                    typ: inv.typ || '',
+                                    itcavl: inv.itcavl || 'Y',
+                                    rsn: inv.rsn || '',
+                                    imsStatus: inv.imsStatus || 'N'
+                                });
+                                addedRecords++;
+                            });
+                        }
+                    });
+                }
+
+                // B2BA
+                if (Array.isArray(data.docdata.b2ba)) {
+                    data.docdata.b2ba.forEach(supplier => {
+                        const ctin = supplier.ctin || '';
+                        const trdnm = supplier.trdnm || '';
+                        const supfildt = supplier.supfildt || '';
+                        const supprd = supplier.supprd || '';
+
+                        if (Array.isArray(supplier.inv)) {
+                            supplier.inv.forEach(inv => {
+                                masterData.b2ba.push({
+                                    sourceFile: fileName,
+                                    ctin,
+                                    trdnm,
+                                    supfildt,
+                                    supprd,
+                                    oinum: inv.oinum || '',
+                                    oidt: inv.oidt || '',
+                                    inum: inv.inum || '',
+                                    dt: inv.dt || '',
+                                    val: Number(inv.val || 0),
+                                    txval: Number(inv.txval || 0),
+                                    igst: Number(inv.igst || 0),
+                                    cgst: Number(inv.cgst || 0),
+                                    sgst: Number(inv.sgst || 0),
+                                    cess: Number(inv.cess || 0),
+                                    pos: inv.pos || '',
+                                    itcavl: inv.itcavl || 'Y'
+                                });
+                                addedRecords++;
+                            });
+                        }
+                    });
+                }
+
+                // CDNR
+                if (Array.isArray(data.docdata.cdnr)) {
+                    data.docdata.cdnr.forEach(supplier => {
+                        const ctin = supplier.ctin || '';
+                        const trdnm = supplier.trdnm || '';
+                        const supfildt = supplier.supfildt || '';
+                        const supprd = supplier.supprd || '';
+
+                        if (Array.isArray(supplier.nt)) {
+                            supplier.nt.forEach(nt => {
+                                masterData.cdnr.push({
+                                    sourceFile: fileName,
+                                    ctin,
+                                    trdnm,
+                                    supfildt,
+                                    supprd,
+                                    ntnum: nt.ntnum || nt.inum || '',
+                                    ntdt: nt.ntdt || nt.dt || '',
+                                    ntty: nt.ntty || 'C', // Credit / Debit
+                                    val: Number(nt.val || 0),
+                                    txval: Number(nt.txval || 0),
+                                    igst: Number(nt.igst || 0),
+                                    cgst: Number(nt.cgst || 0),
+                                    sgst: Number(nt.sgst || 0),
+                                    cess: Number(nt.cess || 0),
+                                    pos: nt.pos || '',
+                                    p_ntnum: nt.p_ntnum || '',
+                                    p_ntdt: nt.p_ntdt || '',
+                                    itcavl: nt.itcavl || 'Y',
+                                    rsn: nt.rsn || ''
+                                });
+                                addedRecords++;
+                            });
+                        }
+                    });
+                }
+            }
+
+            // Counterparty Summary
+            if (data.cpsumm && Array.isArray(data.cpsumm.b2b)) {
+                data.cpsumm.b2b.forEach(cp => {
+                    masterData.cpsumm.push({
+                        sourceFile: fileName,
+                        ctin: cp.ctin || '',
+                        trdnm: cp.trdnm || '',
+                        supprd: cp.supprd || '',
+                        supfildt: cp.supfildt || '',
+                        ttldocs: Number(cp.ttldocs || 0),
+                        txval: Number(cp.txval || 0),
+                        igst: Number(cp.igst || 0),
+                        cgst: Number(cp.cgst || 0),
+                        sgst: Number(cp.sgst || 0),
+                        cess: Number(cp.cess || 0)
+                    });
+                    addedRecords++;
+                });
+            }
+
+            loadedFilesMap.set(fileName, {
+                gstin: fileGstin,
+                rtnprd: filePeriod,
+                recordsCount: addedRecords
+            });
+        }
+
+        function removeFileChunk(fileName, reRender = true) {
+            masterData.b2b = masterData.b2b.filter(r => r.sourceFile !== fileName);
+            masterData.b2ba = masterData.b2ba.filter(r => r.sourceFile !== fileName);
+            masterData.cdnr = masterData.cdnr.filter(r => r.sourceFile !== fileName);
+            masterData.cpsumm = masterData.cpsumm.filter(r => r.sourceFile !== fileName);
+            masterData.itcsumm = masterData.itcsumm.filter(r => r.sourceFile !== fileName);
+
+            loadedFilesMap.delete(fileName);
+
+            if (reRender) {
+                if (loadedFilesMap.size === 0) {
+                    resetData();
+                } else {
+                    renderDashboard();
+                }
+            }
+        }
+
+        function renderDashboard() {
+            if (loadedFilesMap.size === 0) return;
+
+            // Show sections
+            document.getElementById('headerBadges').classList.remove('hidden');
+            document.getElementById('btnExportAll').classList.remove('hidden');
+            document.getElementById('fileListContainer').classList.remove('hidden');
+            document.getElementById('dashboardSection').classList.remove('hidden');
+
+            // Aggregate Header Badges (Multi-GSTIN and Multi-Period handling)
+            const gstinSet = new Set();
+            const periodSet = new Set();
+
+            loadedFilesMap.forEach(meta => {
+                if (meta.gstin) gstinSet.add(meta.gstin);
+                if (meta.rtnprd) periodSet.add(meta.rtnprd);
+            });
+
+            // Extract GSTIN from records if missing in root metadata
+            if (gstinSet.size === 0) {
+                masterData.b2b.forEach(r => r.ctin && gstinSet.add(r.ctin));
+            }
+
+            const formattedGstins = Array.from(gstinSet).join(', ') || 'N/A';
+            const formattedPeriods = Array.from(periodSet).map(formatPeriod).join(', ') || 'N/A';
+
+            document.getElementById('badgeGstin').innerText = formattedGstins;
+            document.getElementById('badgeGstinWrapper').title = `GSTIN: ${formattedGstins}`;
+
+            document.getElementById('badgePeriod').innerText = formattedPeriods;
+            document.getElementById('badgePeriodWrapper').title = `Return Period(s): ${formattedPeriods}`;
+
+            document.getElementById('fileCount').innerText = loadedFilesMap.size;
+
+            // Render Loaded File Chips with Individual Export & Delete Options
+            const fileBadgesDiv = document.getElementById('fileBadges');
+            fileBadgesDiv.innerHTML = Array.from(loadedFilesMap.entries()).map(([fName, meta]) => `
+                <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-900 border border-blue-200 shadow-sm">
+                    <div class="flex items-center gap-1.5 truncate max-w-xs">
+                        <i data-lucide="file-json" class="w-4 h-4 text-blue-600 shrink-0"></i>
+                        <span class="truncate font-semibold" title="${fName}">${fName}</span>
+                    </div>
+                    <div class="flex items-center gap-1 border-l border-blue-200 pl-2">
+                        <button onclick="exportSingleFileExcel('${fName}')" title="Download Excel for this file" class="p-1 hover:bg-emerald-100 text-emerald-700 rounded transition flex items-center gap-1 text-[11px]">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                            <span>Excel</span>
+                        </button>
+                        <button onclick="removeFileChunk('${fName}')" title="Remove this JSON chunk" class="p-1 hover:bg-rose-100 text-rose-600 rounded transition">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+
+            // Calculate Metrics
+            const totalDocs = masterData.b2b.length + masterData.cdnr.length + masterData.b2ba.length;
+            const b2bTaxable = masterData.b2b.reduce((acc, row) => acc + row.txval, 0);
+            const cdnrTaxable = masterData.cdnr.reduce((acc, row) => acc + (row.ntty === 'C' ? -row.txval : row.txval), 0);
+            const totalTaxable = b2bTaxable + cdnrTaxable;
+
+            const totalIgst = masterData.b2b.reduce((acc, row) => acc + row.igst, 0) + masterData.cdnr.reduce((acc, row) => acc + row.igst, 0);
+            const totalCgst = masterData.b2b.reduce((acc, row) => acc + row.cgst, 0) + masterData.cdnr.reduce((acc, row) => acc + row.cgst, 0);
+            const totalSgst = masterData.b2b.reduce((acc, row) => acc + row.sgst, 0) + masterData.cdnr.reduce((acc, row) => acc + row.sgst, 0);
+            const totalCess = masterData.b2b.reduce((acc, row) => acc + row.cess, 0) + masterData.cdnr.reduce((acc, row) => acc + row.cess, 0);
+            const totalTax = totalIgst + totalCgst + totalSgst + totalCess;
+
+            const totalItcAvailable = masterData.b2b.filter(r => r.itcavl === 'Y').reduce((acc, row) => acc + row.igst + row.cgst + row.sgst + row.cess, 0);
+
+            // Update UI KPI Cards
+            document.getElementById('statTotalInvoices').innerText = totalDocs;
+            document.getElementById('statB2BCount').innerText = masterData.b2b.length;
+            document.getElementById('statCDNRCount').innerText = masterData.cdnr.length;
+
+            document.getElementById('statTaxableValue').innerText = formatCurrency(totalTaxable);
+            document.getElementById('statTotalTax').innerText = formatCurrency(totalTax);
+            document.getElementById('statIgst').innerText = formatCurrency(totalIgst);
+            document.getElementById('statCgst').innerText = formatCurrency(totalCgst);
+            document.getElementById('statItcAvailable').innerText = formatCurrency(totalItcAvailable);
+
+            // Tab Counts
+            document.getElementById('countTabB2B').innerText = masterData.b2b.length;
+            document.getElementById('countTabB2BA').innerText = masterData.b2ba.length;
+            document.getElementById('countTabCDNR').innerText = masterData.cdnr.length;
+            document.getElementById('countTabCP').innerText = masterData.cpsumm.length;
+
+            // Render Charts
+            renderCharts(totalIgst, totalCgst, totalSgst, totalCess);
+
+            // Render Active Table View
+            switchTab(activeTab);
+        }
+
+        function renderCharts(igst, cgst, sgst, cess) {
+            // Chart 1: Tax Distribution Doughnut
+            const ctxTax = document.getElementById('chartTaxSplit').getContext('2d');
+            if (chartTaxInstance) chartTaxInstance.destroy();
+
+            chartTaxInstance = new Chart(ctxTax, {
+                type: 'doughnut',
+                data: {
+                    labels: ['IGST', 'CGST', 'SGST', 'Cess'],
+                    datasets: [{
+                        data: [igst, cgst, sgst, cess],
+                        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { font: { size: 11 } } }
+                    }
+                }
+            });
+
+            // Chart 2: Top 5 Suppliers by Taxable Value
+            const ctxSup = document.getElementById('chartTopSuppliers').getContext('2d');
+            if (chartSupplierInstance) chartSupplierInstance.destroy();
+
+            // Group B2B by Trade Name
+            const supplierMap = {};
+            masterData.b2b.forEach(item => {
+                const name = item.trdnm || item.ctin || 'Unknown Supplier';
+                supplierMap[name] = (supplierMap[name] || 0) + item.txval;
+            });
+
+            const sortedSuppliers = Object.entries(supplierMap)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+
+            chartSupplierInstance = new Chart(ctxSup, {
+                type: 'bar',
+                data: {
+                    labels: sortedSuppliers.map(s => truncateText(s[0], 18)),
+                    datasets: [{
+                        label: 'Taxable Value (₹)',
+                        data: sortedSuppliers.map(s => s[1]),
+                        backgroundColor: '#2563eb',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: function(value) {
+                                    return '₹' + (value / 1000).toFixed(0) + 'k';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function switchTab(tabKey) {
+            activeTab = tabKey;
+            currentPage = 1;
+
+            // Highlight Tab Buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'text-blue-700', 'shadow-sm');
+                btn.classList.add('text-slate-600');
+            });
+            const activeBtn = document.getElementById(`tab-${tabKey}`);
+            if (activeBtn) {
+                activeBtn.classList.add('bg-white', 'text-blue-700', 'shadow-sm');
+                activeBtn.classList.remove('text-slate-600');
+            }
+
+            applyFilterAndPaginate();
+        }
+
+        function handleSearch() {
+            currentPage = 1;
+            applyFilterAndPaginate();
+        }
+
+        function changePageSize() {
+            const val = document.getElementById('pageSizeSelect').value;
+            pageSize = val === 'all' ? 9999999 : parseInt(val, 10);
+            currentPage = 1;
+            renderTableRows();
+        }
+
+        function applyFilterAndPaginate() {
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+
+            let rawData = [];
+            if (activeTab === 'b2b') rawData = masterData.b2b;
+            else if (activeTab === 'b2ba') rawData = masterData.b2ba;
+            else if (activeTab === 'cdnr') rawData = masterData.cdnr;
+            else if (activeTab === 'cpsumm') rawData = masterData.cpsumm;
+            else if (activeTab === 'itcsumm') rawData = masterData.itcsumm;
+
+            // Search filtering
+            if (searchQuery) {
+                filteredRows = rawData.filter(row => {
+                    return Object.values(row).some(val => 
+                        String(val).toLowerCase().includes(searchQuery)
+                    );
+                });
+            } else {
+                filteredRows = rawData;
+            }
+
+            renderTableHeaders();
+            renderTableRows();
+        }
+
+        function renderTableHeaders() {
+            const thead = document.getElementById('tableHead');
+            let cols = [];
+
+            if (activeTab === 'b2b') {
+                cols = ['Source File', 'GSTIN', 'Trade Name', 'Inv No', 'Date', 'Val (₹)', 'Taxable (₹)', 'IGST', 'CGST', 'SGST', 'POS', 'ITC Available', 'IMS Status'];
+            } else if (activeTab === 'b2ba') {
+                cols = ['Source File', 'GSTIN', 'Trade Name', 'Orig Inv No', 'Orig Date', 'Rev Inv No', 'Rev Date', 'Taxable (₹)', 'IGST', 'CGST', 'SGST', 'ITC Available'];
+            } else if (activeTab === 'cdnr') {
+                cols = ['Source File', 'GSTIN', 'Trade Name', 'Note No', 'Note Date', 'Type', 'Note Val (₹)', 'Taxable (₹)', 'IGST', 'CGST', 'SGST', 'ITC Available'];
+            } else if (activeTab === 'cpsumm') {
+                cols = ['Source File', 'GSTIN', 'Trade Name', 'Total Docs', 'Taxable Val (₹)', 'IGST (₹)', 'CGST (₹)', 'SGST (₹)', 'Filing Date', 'Supplier Period'];
+            } else if (activeTab === 'itcsumm') {
+                cols = ['Source File', 'Table Section', 'Category', 'Taxable Value (₹)', 'IGST (₹)', 'CGST (₹)', 'SGST (₹)', 'Cess (₹)'];
+            }
+
+            thead.innerHTML = `
+                <tr>
+                    ${cols.map(c => `<th class="px-3 py-2.5 whitespace-nowrap">${c}</th>`).join('')}
+                </tr>
+            `;
+        }
+
+        function renderTableRows() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            const startIdx = (currentPage - 1) * pageSize;
+            const endIdx = startIdx + pageSize;
+            const pagedData = filteredRows.slice(startIdx, endIdx);
+
+            const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+
+            // Update Pagination Bar Labels
+            document.getElementById('pageStart').innerText = filteredRows.length === 0 ? 0 : startIdx + 1;
+            document.getElementById('pageEnd').innerText = Math.min(endIdx, filteredRows.length);
+            document.getElementById('pageTotal').innerText = filteredRows.length;
+            document.getElementById('pageIndicator').innerText = `${currentPage} / ${totalPages}`;
+
+            document.getElementById('btnPrevPage').disabled = currentPage === 1;
+            document.getElementById('btnNextPage').disabled = endIdx >= filteredRows.length;
+
+            if (pagedData.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="13" class="text-center py-8 text-slate-400">
+                            <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                            No records found for the selected tab or search query.
+                        </td>
+                    </tr>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            pagedData.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50/80 transition';
+
+                const sourceBadge = `<span class="inline-block max-w-[140px] truncate px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-700 font-mono border border-slate-200" title="${row.sourceFile}">${row.sourceFile}</span>`;
+
+                if (activeTab === 'b2b') {
+                    const itcBadge = row.itcavl === 'Y' 
+                        ? `<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-semibold text-[10px]">Yes</span>`
+                        : `<span class="bg-rose-100 text-rose-800 px-2 py-0.5 rounded font-semibold text-[10px]">No</span>`;
+
+                    tr.innerHTML = `
+                        <td class="px-3 py-2">${sourceBadge}</td>
+                        <td class="px-3 py-2 font-mono text-slate-600">${row.ctin}</td>
+                        <td class="px-3 py-2 font-medium text-slate-800 max-w-[180px] truncate" title="${row.trdnm}">${row.trdnm}</td>
+                        <td class="px-3 py-2 font-mono">${row.inum}</td>
+                        <td class="px-3 py-2 text-slate-600 whitespace-nowrap">${row.dt}</td>
+                        <td class="px-3 py-2 text-right font-mono">${formatCurrency(row.val)}</td>
+                        <td class="px-3 py-2 text-right font-mono font-semibold text-slate-800">${formatCurrency(row.txval)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-blue-600">${formatCurrency(row.igst)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-emerald-600">${formatCurrency(row.cgst)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-amber-600">${formatCurrency(row.sgst)}</td>
+                        <td class="px-3 py-2 text-center font-mono text-slate-500">${row.pos}</td>
+                        <td class="px-3 py-2 text-center">${itcBadge}</td>
+                        <td class="px-3 py-2 text-center font-mono text-slate-500">${row.imsStatus}</td>
+                    `;
+                } else if (activeTab === 'b2ba') {
+                    tr.innerHTML = `
+                        <td class="px-3 py-2">${sourceBadge}</td>
+                        <td class="px-3 py-2 font-mono text-slate-600">${row.ctin}</td>
+                        <td class="px-3 py-2 font-medium text-slate-800 max-w-[180px] truncate" title="${row.trdnm}">${row.trdnm}</td>
+                        <td class="px-3 py-2 font-mono">${row.oinum}</td>
+                        <td class="px-3 py-2 text-slate-600">${row.oidt}</td>
+                        <td class="px-3 py-2 font-mono font-semibold">${row.inum}</td>
+                        <td class="px-3 py-2 text-slate-600">${row.dt}</td>
+                        <td class="px-3 py-2 text-right font-mono font-semibold">${formatCurrency(row.txval)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-blue-600">${formatCurrency(row.igst)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-emerald-600">${formatCurrency(row.cgst)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-amber-600">${formatCurrency(row.sgst)}</td>
+                        <td class="px-3 py-2 text-center">${row.itcavl}</td>
+                    `;
+                } else if (activeTab === 'cdnr') {
+                    const typeBadge = row.ntty === 'C'
+                        ? `<span class="bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-semibold text-[10px]">Credit</span>`
+                        : `<span class="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-semibold text-[10px]">Debit</span>`;
+
+                    tr.innerHTML = `
+                        <td class="px-3 py-2">${sourceBadge}</td>
+                        <td class="px-3 py-2 font-mono text-slate-600">${row.ctin}</td>
+                        <td class="px-3 py-2 font-medium text-slate-800 max-w-[180px] truncate" title="${row.trdnm}">${row.trdnm}</td>
+                        <td class="px-3 py-2 font-mono">${row.ntnum}</td>
+                        <td class="px-3 py-2 text-slate-600">${row.ntdt}</td>
+                        <td class="px-3 py-2 text-center">${typeBadge}</td>
+                        <td class="px-3 py-2 text-right font-mono">${formatCurrency(row.val)}</td>
+                        <td class="px-3 py-2 text-right font-mono font-semibold">${formatCurrency(row.txval)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-blue-600">${formatCurrency(row.igst)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-emerald-600">${formatCurrency(row.cgst)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-amber-600">${formatCurrency(row.sgst)}</td>
+                        <td class="px-3 py-2 text-center">${row.itcavl}</td>
+                    `;
+                } else if (activeTab === 'cpsumm') {
+                    tr.innerHTML = `
+                        <td class="px-3 py-2">${sourceBadge}</td>
+                        <td class="px-3 py-2 font-mono text-slate-600">${row.ctin}</td>
+                        <td class="px-3 py-2 font-medium text-slate-800 max-w-[200px] truncate" title="${row.trdnm}">${row.trdnm}</td>
+                        <td class="px-3 py-2 text-center font-mono font-semibold">${row.ttldocs}</td>
+                        <td class="px-3 py-2 text-right font-mono font-semibold">${formatCurrency(row.txval)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-blue-600">${formatCurrency(row.igst)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-emerald-600">${formatCurrency(row.cgst)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-amber-600">${formatCurrency(row.sgst)}</td>
+                        <td class="px-3 py-2 text-slate-600">${row.supfildt}</td>
+                        <td class="px-3 py-2 text-slate-600">${row.supprd}</td>
+                    `;
+                } else if (activeTab === 'itcsumm') {
+                    tr.innerHTML = `
+                        <td class="px-3 py-2">${sourceBadge}</td>
+                        <td class="px-3 py-2 font-semibold text-slate-700">${row.section}</td>
+                        <td class="px-3 py-2 text-slate-600">${row.category}</td>
+                        <td class="px-3 py-2 text-right font-mono font-semibold">${formatCurrency(row.txval)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-blue-600">${formatCurrency(row.igst)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-emerald-600">${formatCurrency(row.cgst)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-amber-600">${formatCurrency(row.sgst)}</td>
+                        <td class="px-3 py-2 text-right font-mono text-purple-600">${formatCurrency(row.cess)}</td>
+                    `;
+                }
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        function changePage(delta) {
+            currentPage += delta;
+            renderTableRows();
+        }
+
+        // Generate Worksheets Helper for Consolidated or Single File Exports
+        function generateWorkbookSheets(filterFileName = null) {
+            const wb = XLSX.utils.book_new();
+
+            const filterFn = r => filterFileName ? r.sourceFile === filterFileName : true;
+
+            // Sheet 1: ITC Summary
+            const itcData = masterData.itcsumm.filter(filterFn);
+            if (itcData.length > 0) {
+                const wsSummary = XLSX.utils.json_to_sheet(itcData.map(r => ({
+                    'Source File': r.sourceFile,
+                    'Table Section': r.section,
+                    'Category': r.category,
+                    'Taxable Value (₹)': r.txval,
+                    'Integrated Tax (IGST)': r.igst,
+                    'Central Tax (CGST)': r.cgst,
+                    'State Tax (SGST)': r.sgst,
+                    'Cess': r.cess
+                })));
+                setColumnWidths(wsSummary);
+                XLSX.utils.book_append_sheet(wb, wsSummary, 'ITC Summary');
+            }
+
+            // Sheet 2: B2B Invoices
+            const b2bData = masterData.b2b.filter(filterFn);
+            if (b2bData.length > 0) {
+                const wsB2B = XLSX.utils.json_to_sheet(b2bData.map(r => ({
+                    'Source File': r.sourceFile,
+                    'Supplier GSTIN': r.ctin,
+                    'Trade / Legal Name': r.trdnm,
+                    'Invoice Number': r.inum,
+                    'Invoice Date': r.dt,
+                    'Invoice Value (₹)': r.val,
+                    'Taxable Value (₹)': r.txval,
+                    'IGST (₹)': r.igst,
+                    'CGST (₹)': r.cgst,
+                    'SGST (₹)': r.sgst,
+                    'Cess (₹)': r.cess,
+                    'Place of Supply': r.pos,
+                    'Reverse Charge': r.rev,
+                    'ITC Available': r.itcavl,
+                    'IMS Status': r.imsStatus,
+                    'Supplier Filing Date': r.supfildt,
+                    'Supplier Return Period': r.supprd
+                })));
+                setColumnWidths(wsB2B);
+                XLSX.utils.book_append_sheet(wb, wsB2B, 'B2B Invoices');
+            }
+
+            // Sheet 3: B2BA Invoices
+            const b2baData = masterData.b2ba.filter(filterFn);
+            if (b2baData.length > 0) {
+                const wsB2BA = XLSX.utils.json_to_sheet(b2baData.map(r => ({
+                    'Source File': r.sourceFile,
+                    'Supplier GSTIN': r.ctin,
+                    'Trade / Legal Name': r.trdnm,
+                    'Original Inv No': r.oinum,
+                    'Original Inv Date': r.oidt,
+                    'Revised Inv No': r.inum,
+                    'Revised Inv Date': r.dt,
+                    'Taxable Value (₹)': r.txval,
+                    'IGST (₹)': r.igst,
+                    'CGST (₹)': r.cgst,
+                    'SGST (₹)': r.sgst,
+                    'Cess (₹)': r.cess,
+                    'Place of Supply': r.pos,
+                    'ITC Available': r.itcavl
+                })));
+                setColumnWidths(wsB2BA);
+                XLSX.utils.book_append_sheet(wb, wsB2BA, 'B2BA Invoices');
+            }
+
+            // Sheet 4: Credit / Debit Notes (CDNR)
+            const cdnrData = masterData.cdnr.filter(filterFn);
+            if (cdnrData.length > 0) {
+                const wsCDNR = XLSX.utils.json_to_sheet(cdnrData.map(r => ({
+                    'Source File': r.sourceFile,
+                    'Supplier GSTIN': r.ctin,
+                    'Trade / Legal Name': r.trdnm,
+                    'Note Number': r.ntnum,
+                    'Note Date': r.ntdt,
+                    'Note Type (C/D)': r.ntty,
+                    'Note Value (₹)': r.val,
+                    'Taxable Value (₹)': r.txval,
+                    'IGST (₹)': r.igst,
+                    'CGST (₹)': r.cgst,
+                    'SGST (₹)': r.sgst,
+                    'Cess (₹)': r.cess,
+                    'Place of Supply': r.pos,
+                    'ITC Available': r.itcavl
+                })));
+                setColumnWidths(wsCDNR);
+                XLSX.utils.book_append_sheet(wb, wsCDNR, 'CDNR Notes');
+            }
+
+            // Sheet 5: Counterparty Summary
+            const cpData = masterData.cpsumm.filter(filterFn);
+            if (cpData.length > 0) {
+                const wsCP = XLSX.utils.json_to_sheet(cpData.map(r => ({
+                    'Source File': r.sourceFile,
+                    'Supplier GSTIN': r.ctin,
+                    'Trade / Legal Name': r.trdnm,
+                    'Total Documents': r.ttldocs,
+                    'Taxable Value (₹)': r.txval,
+                    'IGST (₹)': r.igst,
+                    'CGST (₹)': r.cgst,
+                    'SGST (₹)': r.sgst,
+                    'Cess (₹)': r.cess,
+                    'Filing Date': r.supfildt,
+                    'Return Period': r.supprd
+                })));
+                setColumnWidths(wsCP);
+                XLSX.utils.book_append_sheet(wb, wsCP, 'Supplier Summary');
+            }
+
+            return wb;
+        }
+
+        function exportConsolidatedExcel() {
+            if (loadedFilesMap.size === 0) {
+                alert("No data available to export.");
+                return;
+            }
+
+            const wb = generateWorkbookSheets(null);
+            const fileName = `GSTR2B_CONSOLIDATED_EXPORT.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        }
+
+        function exportSingleFileExcel(fileName) {
+            if (!loadedFilesMap.has(fileName)) {
+                alert("File data not found.");
+                return;
+            }
+
+            const wb = generateWorkbookSheets(fileName);
+            const baseName = fileName.replace(/\.json$/i, '');
+            XLSX.writeFile(wb, `${baseName}.xlsx`);
+        }
+
+        function exportCurrentTableExcel() {
+            if (filteredRows.length === 0) {
+                alert("No active data to export.");
+                return;
+            }
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(filteredRows);
+            setColumnWidths(ws);
+            XLSX.utils.book_append_sheet(wb, ws, activeTab.toUpperCase());
+            XLSX.writeFile(wb, `GSTR2B_${activeTab.toUpperCase()}_View.xlsx`);
+        }
+
+        // Auto column width calculation helper
+        function setColumnWidths(ws) {
+            if (!ws['!ref']) return;
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            const colWidths = [];
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                let maxLen = 10;
+                for (let R = range.s.r; R <= range.e.r; ++R) {
+                    const cell = ws[XLSX.utils.encode_cell({ c: C, r: R })];
+                    if (cell && cell.v) {
+                        const len = String(cell.v).length;
+                        if (len > maxLen) maxLen = len;
+                    }
+                }
+                colWidths.push({ wch: Math.min(maxLen + 3, 40) });
+            }
+            ws['!cols'] = colWidths;
+        }
+
+        // Helper function to flatten Table 3 ITC Summary with source filename
+        function flattenItcSummary(itc, fileName) {
+            if (!itc) return [];
+            const rows = [];
+
+            const processSection = (sectionName, obj) => {
+                if (!obj) return;
+                Object.keys(obj).forEach(catKey => {
+                    const item = obj[catKey];
+                    if (item && typeof item === 'object') {
+                        rows.push({
+                            sourceFile: fileName,
+                            section: sectionName,
+                            category: catKey.toUpperCase(),
+                            txval: Number(item.txval || 0),
+                            igst: Number(item.igst || 0),
+                            cgst: Number(item.cgst || 0),
+                            sgst: Number(item.sgst || 0),
+                            cess: Number(item.cess || 0)
+                        });
+                    }
+                });
+            };
+
+            if (itc.itcavl) {
+                processSection('ITC Available - B2B/Other', itc.itcavl.nonrevsup);
+                processSection('ITC Available - Reverse Charge', itc.itcavl.revsup);
+                processSection('ITC Available - Import Goods', itc.itcavl.impg);
+            }
+
+            if (itc.itcunavl) {
+                processSection('ITC Unavailable - Non Reverse', itc.itcunavl.nonrevsup);
+            }
+
+            return rows;
+        }
+
+        function resetData() {
+            masterData = {
+                b2b: [],
+                b2ba: [],
+                cdnr: [],
+                cdnra: [],
+                cpsumm: [],
+                itcsumm: []
+            };
+            loadedFilesMap.clear();
+            filteredRows = [];
+            
+            document.getElementById('fileListContainer').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.add('hidden');
+            document.getElementById('headerBadges').classList.add('hidden');
+            document.getElementById('btnExportAll').classList.add('hidden');
+            document.getElementById('fileInput').value = '';
+        }
+
+        // Formatting utilities
+        function formatCurrency(val) {
+            return new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR',
+                maximumFractionDigits: 2
+            }).format(val || 0);
+        }
+
+        function formatPeriod(periodStr) {
+            if (!periodStr || periodStr.length !== 6) return periodStr || '--';
+            const month = periodStr.substring(0, 2);
+            const year = periodStr.substring(2);
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const mIdx = parseInt(month, 10) - 1;
+            return `${months[mIdx] || month} ${year}`;
+        }
+
+        function truncateText(text, maxLen) {
+            if (!text) return '';
+            return text.length > maxLen ? text.substring(0, maxLen) + '...' : text;
+        }
+    </script>
+</body>
+</html>
